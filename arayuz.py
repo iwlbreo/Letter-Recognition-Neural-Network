@@ -42,10 +42,17 @@ class YSA_Arayuz:
         self.lr_entry.insert(0, "0.01")
         self.lr_entry.pack(pady=5)
 
+
+
         tk.Label(self.orta_frame, text="Epoch (İterasyon) Sayısı:", font=("Arial", 10)).pack(pady=(10, 0))
         self.epoch_entry = tk.Entry(self.orta_frame, justify='center')
         self.epoch_entry.insert(0, "2000")
         self.epoch_entry.pack(pady=5)
+
+        tk.Label(self.orta_frame, text="Gizli Nöron Sayısı:", font=("Arial", 10)).pack(pady=(10, 0))
+        self.hidden_n_entry = tk.Entry(self.orta_frame, justify='center')
+        self.hidden_n_entry.insert(0, "40")
+        self.hidden_n_entry.pack(pady=5)
 
         tk.Button(self.orta_frame, text="Veri Seti Seç (.txt)", command=self.dosya_sec, 
                   width=20, bg="orange", font=("Arial", 10, "bold")).pack(pady=15)
@@ -76,17 +83,22 @@ class YSA_Arayuz:
         dosya_yolu = filedialog.askopenfilename(filetypes=[("Text files", "*.txt")])
         if dosya_yolu:
             try:
-                beklenen = self.satir * self.sutun 
-                
+                beklenen = self.satir * self.sutun
                 self.X_train, self.Y_train, self.labels = parse_txt_dataset(dosya_yolu, beklenen)
-
-                if self.labels:
-                    from yapaysiniragi import YapaySinirAgi
-                    self.ysa = YapaySinirAgi(giris_n=beklenen, gizli_n=40, cikis_n=len(self.labels), ogrenme_hizi=0.01)
+               
+                yeni_gizli_n = int(self.hidden_n_entry.get())
                 
-                messagebox.showinfo("Başarılı", f"{len(self.X_train)} örnek başarıyla yüklendi!")
+                from yapaysiniragi import YapaySinirAgi
+                self.ysa = YapaySinirAgi(
+                    giris_n=beklenen, 
+                    gizli_n=yeni_gizli_n, 
+                    cikis_n=len(self.labels), 
+                    ogrenme_hizi=float(self.lr_entry.get())
+                )
+                
+                messagebox.showinfo("Başarılı", f"{len(self.X_train)} örnek yüklendi ve model güncellendi!")
             except Exception as e:
-                messagebox.showerror("Hata", f"Dosya okunamadı: {e}")
+                messagebox.showerror("Hata", f"Dosya hatası: {e}")
 
     def egitimi_baslat(self):
         if self.X_train is None:
@@ -128,7 +140,7 @@ class YSA_Arayuz:
         messagebox.showinfo("Eğitim Tamamlandı!", f"{epoch_degeri} epoch sonunda model hazır.")
 
     def tahmin_yap(self):
-        matris = np.array([[self.matris_vars[r][c].get() for c in range(5)] for r in range(7)])
+        matris = np.array([[self.matris_vars[r][c].get() for c in range(self.sutun)] for r in range(self.satir)])
 
         coords = np.argwhere(matris == 1)
         
@@ -137,17 +149,18 @@ class YSA_Arayuz:
             y_max, x_max = coords.max(axis=0)
             kirpilmis = matris[y_min:y_max+1, x_min:x_max+1]
             h, w = kirpilmis.shape
-            normalize_vektor = np.zeros((7, 5))
             
-            for r in range(7):
-                for c in range(5):
-                    orig_r = int((r + 0.5) * h / 7)
-                    orig_c = int((c + 0.5) * w / 5)
+            normalize_vektor = np.zeros((self.satir, self.sutun))
+            
+            for r in range(self.satir):
+                for c in range(self.sutun):
+                    orig_r = int((r + 0.5) * h / self.satir)
+                    orig_c = int((c + 0.5) * w / self.sutun)
                     orig_r = min(orig_r, h - 1)
                     orig_c = min(orig_c, w - 1)
                     normalize_vektor[r, c] = kirpilmis[orig_r, orig_c]
             
-            girdi = normalize_vektor.flatten().reshape(1, 35).astype(np.float32)
+            girdi = normalize_vektor.flatten().reshape(1, self.satir * self.sutun).astype(np.float32)
         else:
             return 
 
@@ -158,26 +171,23 @@ class YSA_Arayuz:
             harf_sonuc = self.labels[tahmin_index]
             self.sonuc_label.config(text=f"Tahmin: {harf_sonuc}")
     def sistemi_sifirla(self):
-        if messagebox.askyesno("Onay", "Tüm eğitim verileri ve model hafızası silinecek. Emin misiniz?"):
-            self.X_train = None
-            self.Y_train = None
-            self.labels = []
-
-            from yapaysiniragi import YapaySinirAgi
-            self.ysa = YapaySinirAgi(
-                giris_n=self.satir * self.sutun, 
-                gizli_n=40, 
-                cikis_n=26, 
-                ogrenme_hizi=0.01
-            )
-            
-            self.temizle() 
-            self.sonuc_label.config(text="Tahmin: ?", fg="red")
-
-            self.line.set_data([], [])
-            self.ax.relim()
-            self.ax.autoscale_view()
-            self.canvas.draw()
+        if messagebox.askyesno("Onay", "Tüm hafıza silinecek?"):
+            try:
+                yeni_gizli_n = int(self.hidden_n_entry.get())
+                self.X_train = self.Y_train = None
+                cikis_sayisi = len(self.labels) if self.labels else 26
+                from yapaysiniragi import YapaySinirAgi
+                self.ysa = YapaySinirAgi(
+                    giris_n=self.satir * self.sutun, 
+                    gizli_n=yeni_gizli_n, 
+                    cikis_n=cikis_sayisi, 
+                    ogrenme_hizi=float(self.lr_entry.get())
+                )
+                
+                self.temizle()
+                messagebox.showinfo("Başarılı", f"Model {yeni_gizli_n} gizli nöron ile sıfırlandı!")
+            except ValueError:
+                messagebox.showerror("Hata", "Gizli nöron sayısı tam sayı olmalıdır!")
             
             messagebox.showinfo("Sıfırlandı", "Uygulama tertemiz hale getirildi. Yeni veri seti yükleyebilirsiniz.")
     def temizle(self):
