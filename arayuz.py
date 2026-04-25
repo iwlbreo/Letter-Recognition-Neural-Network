@@ -158,9 +158,6 @@ class YSA_Arayuz:
             harf_sonuc = self.labels[tahmin_index]
             self.sonuc_label.config(text=f"Tahmin: {harf_sonuc}")
     def sistemi_sifirla(self):
-        """
-        Model ağırlıklarını, eğitim verilerini ve UI bileşenlerini fabrika ayarlarına döndürür[cite: 4, 5].
-        """
         if messagebox.askyesno("Onay", "Tüm eğitim verileri ve model hafızası silinecek. Emin misiniz?"):
             self.X_train = None
             self.Y_train = None
